@@ -1,0 +1,19 @@
+{
+  "name": "thresh-blog-node-server",
+  "version": "1.0.0",
+  "description": "",
+  "type": "module",
+  "main": "bin/main.js",
+  "scripts": {
+    "dev": "cross-env NODE_ENV=dev nodemon bin/main.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "packageManager": "pnpm",
+  "devDependencies": {
+    "cross-env": "^10.0.0",
+    "nodemon": "^3.1.10"
+  }
+}
