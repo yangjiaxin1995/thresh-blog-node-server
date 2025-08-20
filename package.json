@@ -6,6 +6,7 @@
   "main": "bin/main.js",
   "scripts": {
     "dev": "cross-env NODE_ENV=dev nodemon bin/main.js",
+    "prod": "cross-env NODE_ENV=production nodemon bin/main.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -15,5 +16,8 @@
   "devDependencies": {
     "cross-env": "^10.0.0",
     "nodemon": "^3.1.10"
+  },
+  "dependencies": {
+    "mysql2": "^3.14.3"
   }
 }
