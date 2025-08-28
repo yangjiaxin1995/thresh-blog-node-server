@@ -1,6 +1,16 @@
 import querystring from "querystring";
+import { get, set } from "./src/db/redis.js";
 import handleBlogRouter from "./src/router/blog.js";
 import handleUserRouter from "./src/router/user.js";
+
+const getCookieExpires = () => {
+  const d = new Date();
+  d.setTime(d.getTime() + 1000 * 60 * 60 * 24);
+  return d.toUTCString();
+};
+
+// // session数据
+// const SESSION_DATA = {};
 
 const getPostData = (req) => {
   return new Promise((resolve, reject) => {
@@ -37,43 +47,106 @@ const serverHandle = (req, res) => {
   // 解析query
   req.query = querystring.parse(url.split("?")[1]);
 
-  // 处理postData
-  getPostData(req).then((postData) => {
-    req.body = postData;
-
-    // 处理blog路由
-    // const blogData = handleBlogRouter(req, res);
-    // if (blogData) {
-    //   res.end(JSON.stringify(blogData));
-    //   return;
-    // }
-    const blogResult = handleBlogRouter(req, res);
-    if (blogResult) {
-      blogResult.then((blogData) => {
-        res.end(JSON.stringify(blogData));
-      });
+  // 处理cookie
+  req.cookie = {};
+  const cookieStr = req.headers.cookie || "";
+  cookieStr.split(";").forEach((item) => {
+    if (!item) {
       return;
     }
-
-    // 处理user路由
-    // const userData = handleUserRouter(req, res);
-    // if (userData) {
-    //   res.end(JSON.stringify(userData));
-    //   return;
-    // }
-    const userResult = handleUserRouter(req, res);
-    if (userResult) {
-      userResult.then((userData) => {
-        res.end(JSON.stringify(userData));
-      });
-      return;
-    }
-
-    // 未命中路由
-    res.writeHead(404, { "Content-type": "text/plain" });
-    res.write("404 Not Found");
-    res.end();
+    const arr = item.split("=");
+    const key = arr[0].trim();
+    const val = arr[1].trim();
+    req.cookie[key] = val;
   });
+
+  // // 解析session
+  // let needSetCookie = false;
+  // let userId = req.cookie.userid;
+  // if (userId) {
+  //   if (!SESSION_DATA[userId]) {
+  //     SESSION_DATA[userId] = {};
+  //   }
+  // } else {
+  //   needSetCookie = true;
+  //   userId = `${Date.now()}_${Math.random()}`;
+  //   SESSION_DATA[userId] = {};
+  // }
+  // req.session = SESSION_DATA[userId];
+
+  // 解析session 使用redis
+  let needSetCookie = false;
+  let userId = req.cookie.userid;
+  if (!userId) {
+    needSetCookie = true;
+    userId = `${Date.now()}_${Math.random()}`;
+    // 初始化 redis 中的 session 值
+    set(userId, {});
+  }
+  // 获取session
+  req.sessionId = userId;
+  get(userId)
+    .then((sessionData) => {
+      if (sessionData === null) {
+        set(req.sessionId, {});
+        req.session = {};
+      } else {
+        req.session = sessionData;
+      }
+
+      // 处理postData
+      return getPostData(req);
+    })
+    .then((postData) => {
+      req.body = postData;
+
+      // 处理blog路由
+      // const blogData = handleBlogRouter(req, res);
+      // if (blogData) {
+      //   res.end(JSON.stringify(blogData));
+      //   return;
+      // }
+      const blogResult = handleBlogRouter(req, res);
+      if (blogResult) {
+        blogResult.then((blogData) => {
+          // 设置cookie
+          if (needSetCookie) {
+            res.setHeader(
+              "Set-Cookie",
+              `userid=${userId}; path=/; httpOnly; expires=${getCookieExpires()}`
+            );
+          }
+          res.end(JSON.stringify(blogData));
+        });
+        return;
+      }
+
+      // 处理user路由
+      // const userData = handleUserRouter(req, res);
+      // if (userData) {
+      //   res.end(JSON.stringify(userData));
+      //   return;
+      // }
+      const userResult = handleUserRouter(req, res);
+      if (userResult) {
+        userResult.then((userData) => {
+          // 设置cookie
+          if (needSetCookie) {
+            res.setHeader(
+              "Set-Cookie",
+              `userid=${userId}; path=/; httpOnly; expires=${getCookieExpires()}`
+            );
+          }
+          res.end(JSON.stringify(userData));
+        });
+        return;
+      }
+
+      // 未命中路由
+      res.writeHead(404, { "Content-type": "text/plain" });
+      res.write("404 Not Found");
+      res.end();
+    });
 };
 
 export default serverHandle;
